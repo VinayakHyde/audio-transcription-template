@@ -1,0 +1,14 @@
+# Private: recordings, transcripts, and generated pages (the .html embeds the full transcript).
+# Never commit meeting content.
+transcripts/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Local virtualenvs (the pipeline's venv lives at ~/.whisperx-venv, but just in case)
+.venv/
+venv/
