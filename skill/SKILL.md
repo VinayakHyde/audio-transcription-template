@@ -16,6 +16,7 @@ Requires `HF_TOKEN` in the environment + `ffmpeg`. Diarization model: `pyannote/
 - **audio** (required): path to the recording.
 - **speakers** (optional int): exact speaker count for cleaner labels; omit to auto-detect.
 - **language** (optional): default `en`. Note: `en` on Hinglish audio transcribes-as-English (translates Hindi inline) — usually desired. `hi` for verbatim mixed-script.
+- **context** (optional, free-text): who the notes are for and what to emphasise — the reader's role/goals, the angle to take, which themes to prioritise, terminology, or format preferences. Steers the entire write-up (see step 5). Capture it from the user's request, e.g. *"I'm the new ops lead building a KPI dashboard — focus on metrics and system gaps, frame action items for me."*
 
 ## Steps
 
@@ -35,6 +36,8 @@ Requires `HF_TOKEN` in the environment + `ffmpeg`. Diarization model: `pyannote/
 4. **Read the whole transcript** before writing — `transcripts/<BASE>.txt` (speaker-labeled prose). Genuinely understand the meeting; never invent facts.
 
 5. **Write notes** to `$TEMPLATE/transcripts/<BASE>.notes.html` — **detailed, in-depth, and structured. NOT a terse summary.** Someone who missed the meeting should be able to reconstruct it from your notes: capture how things work, the specifics, names, numbers, processes, decisions, and the reasoning — not just headlines.
+
+   **If `context` was provided, let it steer everything** — the reader's perspective and goals decide which themes to expand vs compress, what counts as an action item or open question, the section ordering, the title, and the terminology. Examples: *"I'm the new ops lead building a KPI dashboard"* → lead with metrics/systems, frame action items for that reader, surface data gaps as open questions; *"for the CEO, keep it strategic"* → emphasise decisions, risks, and money, trim operational minutiae; *"prep for a follow-up negotiation"* → pull out commitments, numbers, and leverage points. Without context, write balanced, general-purpose meeting notes. Either way, keep the inline-open-question discipline below.
 
    **Organize into themed `<h2>` sections** (with `<h3>` sub-sections where it helps), each unpacking real content with detailed `<ul>` bullets or `<ol>` step lists. Adapt the sections to the meeting; a typical spine:
    ```html
