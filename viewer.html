@@ -192,7 +192,7 @@ let segs = [];          // {start,end,speaker,el,words:[{start,end,word,score,el
 let flatWords = [];
 let speakerNames = {}, speakerColor = {};
 let storeKey = 'tp:default';
-let autoScroll = true, activeSeg = null, pendingNotes = null;
+let autoScroll = true, activeSeg = null, pendingNotes = null, embedNotesVer = null;
 
 /* ---------- time helpers ---------- */
 const fmt = t => { t=Math.max(0,t||0); const m=Math.floor(t/60), s=Math.floor(t%60);
@@ -301,12 +301,22 @@ function baseName(){ return ($('#fnText').textContent||'notes').replace(/^📝\s
 function loadNotes(){ try{ return localStorage.getItem(storeKey+':notes'); }catch{ return null; } }
 function setNotes(html){
   const saved=loadNotes();
-  notesBody.innerHTML = (saved!=null && saved!=='') ? saved : (html||'');
+  let savedVer=null; try{ savedVer=localStorage.getItem(storeKey+':notesVer'); }catch{}
+  // Keep the user's saved edits ONLY if they were made against this version of the notes.
+  // A regenerated page (new notesVer) supersedes stale saved notes so refresh shows the new ones.
+  if(saved!=null && saved!=='' && (embedNotesVer==null || savedVer===embedNotesVer)){
+    notesBody.innerHTML = saved;
+  } else {
+    notesBody.innerHTML = html||'';
+    try{ localStorage.removeItem(storeKey+':notes');
+      if(embedNotesVer!=null) localStorage.setItem(storeKey+':notesVer',embedNotesVer); }catch{}
+  }
   linkifyTimestamps(notesBody);
 }
 let notesSaveT=null;
 notesBody.addEventListener('input',()=>{ clearTimeout(notesSaveT);
-  notesSaveT=setTimeout(()=>{ try{ localStorage.setItem(storeKey+':notes',notesBody.innerHTML); }catch{} },400); });
+  notesSaveT=setTimeout(()=>{ try{ localStorage.setItem(storeKey+':notes',notesBody.innerHTML);
+    if(embedNotesVer!=null) localStorage.setItem(storeKey+':notesVer',embedNotesVer); }catch{} },400); });
 notesBody.addEventListener('blur',()=>linkifyTimestamps(notesBody));
 notesBody.addEventListener('click',e=>{ const a=e.target.closest('.tslink'); if(a){ e.preventDefault();
   const t=+a.dataset.t; if(!isNaN(t)){ audio.currentTime=t; autoScroll=true; if(audio.paused) audio.play(); } } });
@@ -448,7 +458,7 @@ document.addEventListener('keydown',e=>{
     segs=normalizeWhisperX(e.transcript);
     $('#fnText').textContent='📝 '+(e.name||'transcript');
     setAudioURL(e.audio, e.name||(''+e.audio).split('/').pop());
-    pendingNotes = e.notes || '';
+    pendingNotes = e.notes || ''; embedNotesVer = e.notesVer || null;
     loadMeta(); render(); return; }
   const p=new URLSearchParams(location.search);
   const a=p.get('audio'), t=p.get('transcript');

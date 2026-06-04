@@ -8,7 +8,7 @@ The transcript JSON (and optional notes HTML) are embedded inline -> works from 
 The audio is referenced relative to the page, so just open the generated .html and it
 plays with the synced, auto-scrolling transcript and the editable notes pane.
 """
-import sys, os, json
+import sys, os, json, hashlib
 from urllib.parse import quote
 
 def main():
@@ -37,11 +37,14 @@ def main():
     # (\/ is a no-op escape in both JSON and JS, so the value stays valid.)
     safe = transcript.replace("</", "<\\/")
     notes_field = json.dumps(notes_html).replace("</", "<\\/")   # embedded as a JS string
+    # version stamp: lets the viewer discard stale localStorage edits when notes are regenerated
+    notes_ver = hashlib.md5(notes_html.encode("utf-8")).hexdigest()[:12] if notes_html else ""
 
     embed = ("<script>window.__EMBED={"
              '"audio":' + json.dumps(audio_url) + ','
              '"name":'  + json.dumps(name) + ','
              '"notes":' + notes_field + ','
+             '"notesVer":' + json.dumps(notes_ver) + ','
              '"transcript":' + safe +
              "};</script>\n</head>")
 
