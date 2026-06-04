@@ -2,6 +2,16 @@
 # Never commit meeting content.
 transcripts/
 
+# Belt-and-suspenders: never commit raw recordings, wherever they land in the repo.
+# (None of the tooling files are audio, so these globs are safe.)
+*.m4a
+*.mp3
+*.wav
+*.aac
+*.m4b
+*.mov
+*.mp4
+
 # Python
 __pycache__/
 *.pyc
