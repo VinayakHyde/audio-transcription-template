@@ -16,7 +16,7 @@ Requires `HF_TOKEN` in the environment + `ffmpeg`. Diarization model: `pyannote/
 - **audio** (required): path to the recording.
 - **speakers** (optional int): exact speaker count for cleaner labels; omit to auto-detect.
 - **language** (optional): default `en`. Note: `en` on Hinglish audio transcribes-as-English (translates Hindi inline) — usually desired. `hi` for verbatim mixed-script.
-- **context** (optional, free-text): who the notes are for and what to emphasise — the reader's role/goals, the angle to take, which themes to prioritise, terminology, or format preferences. Steers the entire write-up (see step 5). Capture it from the user's request, e.g. *"I'm the new ops lead building a KPI dashboard — focus on metrics and system gaps, frame action items for me."*
+- **context** (optional): who the notes are for and what to emphasise — reader's role/goals, the angle, themes to prioritise, terminology/format. May be given **inline as free text OR as a path to a `.md`/`.txt` file** — if it looks like a file path, `Read` it and use its full contents as the context. A file is ideal for a standing brief the user reuses across meetings: their role, the project, an **org glossary / known people & clients / acronyms / naming conventions**. Steers the entire write-up (see step 5). Example inline: *"I'm the new ops lead building a KPI dashboard — focus on metrics and system gaps, frame action items for me."*
 
 ## Steps
 
@@ -38,6 +38,8 @@ Requires `HF_TOKEN` in the environment + `ffmpeg`. Diarization model: `pyannote/
 5. **Write notes** to `$TEMPLATE/transcripts/<BASE>.notes.html` — **detailed, in-depth, and structured. NOT a terse summary.** Someone who missed the meeting should be able to reconstruct it from your notes: capture how things work, the specifics, names, numbers, processes, decisions, and the reasoning — not just headlines.
 
    **If `context` was provided, let it steer everything** — the reader's perspective and goals decide which themes to expand vs compress, what counts as an action item or open question, the section ordering, the title, and the terminology. Examples: *"I'm the new ops lead building a KPI dashboard"* → lead with metrics/systems, frame action items for that reader, surface data gaps as open questions; *"for the CEO, keep it strategic"* → emphasise decisions, risks, and money, trim operational minutiae; *"prep for a follow-up negotiation"* → pull out commitments, numbers, and leverage points. Without context, write balanced, general-purpose meeting notes. Either way, keep the inline-open-question discipline below.
+
+   If `context` is a file path, `Read` it first. When the context supplies a **glossary or known entities** (people, clients, the company name, acronyms), use them to **correct shaky transcript spellings and resolve open questions** — e.g. a name the audio rendered as "Devarshish" becomes a confirmed fact (not an open question) if the brief lists the real spelling; expand acronyms like "OI"/"CPC" if the brief defines them.
 
    **Organize into themed `<h2>` sections** (with `<h3>` sub-sections where it helps), each unpacking real content with detailed `<ul>` bullets or `<ol>` step lists. Adapt the sections to the meeting; a typical spine:
    ```html
