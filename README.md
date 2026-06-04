@@ -1,105 +1,103 @@
-# 🎧 Audio Transcription + Synced Notes
+# 🎧 Audio → Transcript + AI Notes (Claude Code skill)
 
-Turn any recording into a **single self-contained HTML page**: a synced, auto-scrolling transcript on the left and **editable, AI-written notes on the right**. Fully local and offline after setup — nothing is uploaded.
+Drop in a meeting recording and get back **one self-contained HTML page**: a synced, auto-scrolling transcript on the left and **editable, AI-written notes on the right** — with open questions raised inline and informed by transcription confidence. Fully local; nothing is uploaded.
 
-Built around [WhisperX](https://github.com/m-bain/whisperX) (Whisper `large-v3` + `pyannote` diarization), tuned for Apple Silicon Macs.
-
-![what it does](https://img.shields.io/badge/runs-100%25%20local-success) ![platform](https://img.shields.io/badge/platform-Apple%20Silicon-black)
+Built on [WhisperX](https://github.com/m-bain/whisperX) (Whisper `large-v3` + `pyannote` diarization), tuned for Apple Silicon.
 
 ---
 
-## What you get
+## ⭐ Just use the skill
 
-- **Word-accurate transcript** with speaker labels (`SPEAKER_00` / `SPEAKER_01` …).
-- **Synced player** — the transcript auto-scrolls and karaoke-highlights the current word as audio plays; **scrub** or **click any line/word** to jump.
-- **Editable notes pane** — AI-generated meeting notes (Summary · Decisions · Action items · People · **Open Questions**) you can edit in place; edits autosave to your browser.
-- **Confidence-aware** — words the model was unsure of get a dotted underline; shaky names/numbers become **Open Questions** in the notes (with clickable `[m:ss]` timestamps).
-- **Self-contained output** — one `.html` you can double-click; the audio is bundled (faststart-remuxed so seeking is instant).
+Once you've done the one-time **[Setup](#-setup-one-time)** below, you don't run any scripts by hand — you ask **Claude Code** and the bundled **`meeting-notes`** skill does everything (transcribe → write notes → render the page → hand you a URL).
+
+Just say it in plain language:
+
+```
+make meeting notes from ~/Downloads/Standup.m4a
+```
+
+With options (all optional):
+
+```
+make notes from ~/Downloads/Client call.m4a — 2 speakers
+make notes from ~/Downloads/Hindi sync.m4a — language hi
+make notes from ~/Downloads/Review.m4a — context: I'm the new ops lead building a KPI dashboard; focus on metrics and system gaps
+make notes from ~/Downloads/Followup.m4a — context: ~/notes/project-brief.md
+```
+
+- **speakers** — exact speaker count for cleaner labels (omit to auto-detect).
+- **language** — default `en` (on Hinglish audio this transcribes-as-English, i.e. translates Hindi inline — usually what you want); `hi` for verbatim mixed-script.
+- **context** — free text *or a path to a `.md`/`.txt` file*. Steers the whole write-up (reader's role, what to emphasise). If the file carries a **glossary of known people/clients/acronyms**, the skill uses it to **correct shaky transcript spellings and resolve open questions** instead of re-flagging them. Great for follow-up meetings: feed in your running notes and each session resolves the previous one's open items.
+
+**What you get back:** a URL like `http://localhost:8780/Standup.html` (and the same file on disk to double-click). Transcript auto-scrolls + karaoke-highlights as audio plays; scrub or click any line/word to seek; the right pane is your editable notes with clickable `[m:ss]` chips and an Open-Questions trail; low-confidence words are dotted-underlined.
+
+> Heads-up on time: transcription is CPU-only on Apple Silicon, and diarization (speaker labels) is slow — budget ~50 min for a 45-min file, or far less if you skip speaker labels. See [Speed](#speed).
 
 ---
 
-## Requirements
+## 🛠 Setup (one-time)
 
-- macOS on **Apple Silicon** (works elsewhere too; transcription is CPU-only — see [Speed](#speed)).
-- [Homebrew](https://brew.sh) · **Python 3.10–3.13** (WhisperX needs `<3.14`) · **ffmpeg**.
-- A free **Hugging Face** account + token (for the speaker-diarization model).
+### 1. Get the code
+```bash
+git clone https://github.com/VinayakHyde/audio-transcription-template.git ~/Code/audio-transcription-template
+```
+> The skill expects the repo at `~/Code/audio-transcription-template`. If you put it elsewhere, edit the `TEMPLATE` path at the top of `skill/SKILL.md`.
 
----
+### 2. Install the skill into Claude Code
+```bash
+mkdir -p ~/.claude/skills/meeting-notes
+cp ~/Code/audio-transcription-template/skill/SKILL.md ~/.claude/skills/meeting-notes/SKILL.md
+```
+That's it — Claude Code auto-discovers skills in `~/.claude/skills/`. Start a new Claude Code session and it'll activate when you ask for meeting notes. (Verify by typing `/` — `meeting-notes` should appear.)
 
-## Install
-
-### 1. ffmpeg
+### 3. Install ffmpeg
 ```bash
 brew install ffmpeg
 ```
 
-### 2. Hugging Face token + model access (for speaker labels)
-The diarization model is free but **gated** — accept its terms once:
-1. Create a free account at [huggingface.co](https://huggingface.co).
-2. Open **[pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)** and click **Agree**. *(This single model replaced the old `speaker-diarization-3.1` + `segmentation-3.0` pair.)*
-3. Create a **read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), then add it to your shell (persist it in `~/.zshrc`):
+### 4. Hugging Face token + accept the diarization model
+Speaker labels use a **gated** (free) model — accept its terms once:
+1. Make a free account at [huggingface.co](https://huggingface.co).
+2. Open **https://huggingface.co/pyannote/speaker-diarization-community-1** and click **Agree**. *(This single model replaced the old `speaker-diarization-3.1` + `segmentation-3.0` pair.)*
+3. Create a **read** token at **https://huggingface.co/settings/tokens** and export it (add to `~/.zshrc` to persist):
    ```bash
    export HF_TOKEN=hf_your_token_here
    ```
-   *(Only needed for diarization. Run with `DIARIZE=0` to skip speaker labels and the token.)*
+   *(Token only needed for diarization — ask for notes "without speaker labels" to skip it.)*
 
-### 3. WhisperX + models
-You don't install these by hand — **the first run of `transcribe.sh` bootstraps everything**:
-- creates a venv at `~/.whisperx-venv` (Python 3.11) and `pip install whisperx`,
-- on first transcription, downloads the models (~**3 GB**, cached afterward): Whisper `large-v3`, `pyannote/speaker-diarization-community-1`, and the `wav2vec2` aligner.
-
-To pre-build the venv manually instead:
-```bash
-python3.11 -m venv ~/.whisperx-venv
-~/.whisperx-venv/bin/pip install whisperx
-```
+### 5. First run downloads the models (~3 GB, then cached)
+No manual step — the first transcription auto-creates a venv at `~/.whisperx-venv` (`pip install whisperx`) and pulls the models. See the list + links below.
 
 ---
 
-## Usage
+## 📦 The models (Hugging Face)
 
-### Transcribe
+| Model | Purpose | Action |
+|-------|---------|--------|
+| [**pyannote/speaker-diarization-community-1**](https://huggingface.co/pyannote/speaker-diarization-community-1) | speaker diarization (who spoke when) | **must accept terms** (step 4) |
+| [Systran/faster-whisper-large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) | transcription (ASR) | auto-downloads |
+| torchaudio `WAV2VEC2_ASR_BASE_960H` | word-level alignment (English) | auto-downloads (from pytorch.org) |
+| [theainerd/Wav2Vec2-large-xlsr-hindi](https://huggingface.co/theainerd/Wav2Vec2-large-xlsr-hindi) | word alignment (Hindi) | auto-downloads if `language hi` |
+
+WhisperX maps each language to its own alignment model; English uses torchaudio's wav2vec2, other languages pull an equivalent from Hugging Face on demand.
+
+---
+
+## 🔧 Without the skill (manual)
+
+The scripts work standalone too:
+
 ```bash
-./transcribe.sh "/path/to/Meeting.m4a" 2     # 2 known speakers
-./transcribe.sh "/path/to/lecture.m4a"       # auto-detect speaker count
+cd ~/Code/audio-transcription-template
+./transcribe.sh "/path/to/audio.m4a" 2          # → transcripts/<name>.{json,srt,vtt,txt,tsv,m4a,html}
+DIARIZE=0 ./transcribe.sh "/path/to/talk.m4a"   # plain transcript, no speaker labels (much faster)
+python3 serve.py 8000 transcripts               # Range-capable server (needed for seeking)
+# open http://localhost:8000/<name>.html
 ```
-Outputs land in **`./transcripts/`** (next to the script): `.json .srt .vtt .txt .tsv`, a faststart `.m4a`, and a ready-to-open `.html` player page.
+Env vars: `DIARIZE` (1/0), `WHISPER_LANG` (`en`/`hi`/``), `MODEL` (`large-v3`/`large-v3-turbo`/…), `RENDER` (1/0).
+The skill just orchestrates these and writes the notes for you.
 
-Options (env vars):
-| Var | Default | Effect |
-|-----|---------|--------|
-| `DIARIZE` | `1` | `0` = plain transcript, no speaker labels (much faster — skips the diarization tail) |
-| `WHISPER_LANG` | `en` | language code; `""` to auto-detect. See [Languages](#languages) |
-| `MODEL` | `large-v3` | `large-v3-turbo` (faster), `medium`, `small` |
-| `RENDER` | `1` | `0` = skip building the `.html` page |
-
-### View / play
-Two ways:
-- **Double-click** `transcripts/<name>.html` — it's self-contained and seekable (`file://`).
-- **Serve it** (needed only if you prefer a URL) — use the included Range-capable server; the built-in `python3 -m http.server` does **not** support range requests and will break seeking:
-  ```bash
-  python3 serve.py 8000 transcripts
-  # open http://localhost:8000/<name>.html
-  ```
-
-Player shortcuts: `Space` play/pause · `←/→` ±5s · `j/l` ±10s. Rename `SPEAKER_xx` → real names in the header (saved locally). Search box + 0.75–2× speed.
-
-### AI notes (the `meeting-notes` skill)
-This repo ships a **Claude Code skill** that runs the whole pipeline *and* writes the notes. Install it:
-```bash
-mkdir -p ~/.claude/skills/meeting-notes
-cp skill/SKILL.md ~/.claude/skills/meeting-notes/
-```
-Then in Claude Code: *"make meeting notes from ~/Downloads/Meeting.m4a"*. It transcribes, reads the transcript + confidence report, writes structured notes (Open Questions informed by low-confidence spans), renders the page, and gives you a URL. The notes pane is your starting point — edit freely.
-
-To (re)generate notes for an already-transcribed file by hand:
-```bash
-python3 confidence_report.py "transcripts/<name>.json"      # see the shaky spans
-# ...write transcripts/<name>.notes.html (plain HTML: h1-h3, p, ul/li; cite moments as [m:ss];
-#    wrap Open Questions in <div class="open-q">…</div>)...
-python3 render_page.py "transcripts/<name>.m4a" "transcripts/<name>.json" \
-        viewer.html "transcripts/<name>.html" "transcripts/<name>.notes.html"
-```
+> ⚠️ Use the included `serve.py`, **not** `python3 -m http.server` — the built-in server doesn't support HTTP Range, which breaks audio seeking. (Double-clicking the `.html` works too; `file://` is seekable.)
 
 ---
 
@@ -109,19 +107,17 @@ Whisper decodes **one language per pass** (no simultaneous multi-language).
 
 | `WHISPER_LANG` | Result |
 |----------------|--------|
-| `en` (default) | English. On **Hinglish/Hindi-English** audio this transcribes-as-English — it effectively **translates Hindi inline into English**, which reads cleanly. |
+| `en` (default) | English. On **Hinglish/Hindi-English** audio it transcribes-as-English — effectively **translating Hindi inline**, which reads cleanly. |
 | `hi` | Hindi — Devanagari for Hindi, Latin for English (verbatim, mixed-script). |
-| `""` | Auto-detect (picks one language for the whole file — flaky on code-mixed audio). |
-
-For an explicit English translation of any-language audio, add `--task translate` to the `whisperx` args in `transcribe.sh`.
+| `""` | Auto-detect (one language for the whole file — flaky on code-mixed audio). |
 
 ---
 
 ## Speed
 
-Whisper runs on **CPU** on Apple Silicon — CTranslate2 has no Metal/GPU backend. Rough numbers on an M4 Pro for a **46-min mono file**: transcription ~18 min, **diarization ~33 min** (the slow tail). So budget ~50 min with speaker labels, ~18 min without (`DIARIZE=0`).
+Transcription runs on **CPU** (CTranslate2 has no Metal/GPU backend on Apple Silicon). Rough M4 Pro numbers for a **46-min mono file**: transcription ~18 min, **diarization ~33 min** (the slow tail) → ~50 min with speaker labels, ~18 min without (`DIARIZE=0`).
 
-> An MLX/GPU path (`mlx-whisper`) was evaluated and rejected — on accented/code-mixed speech it hallucinated and ran *slower*. CPU WhisperX gave clean output.
+> An MLX/GPU path (`mlx-whisper`) was evaluated and rejected — on accented/code-mixed speech it hallucinated and ran *slower*.
 
 ---
 
@@ -129,16 +125,16 @@ Whisper runs on **CPU** on Apple Silicon — CTranslate2 has no Metal/GPU backen
 
 | File | Role |
 |------|------|
-| `transcribe.sh` | audio → transcript (`.json/.srt/.vtt/.txt/.tsv`) + faststart `.m4a` + `.html` |
-| `viewer.html` | the player UI (synced transcript + editable notes); works via drag-drop, `?audio=&transcript=` params, or an embedded payload |
-| `render_page.py` | bakes transcript (+ optional notes) into a standalone `.html` |
+| `skill/SKILL.md` | the **`meeting-notes`** Claude Code skill (copy to `~/.claude/skills/meeting-notes/`) |
+| `transcribe.sh` | audio → transcript + faststart `.m4a` + `.html` |
+| `viewer.html` | the player UI (synced transcript + editable notes) |
+| `render_page.py` | bakes transcript (+ notes) into a standalone `.html` |
 | `confidence_report.py` | ranks low-confidence spans → fuels Open Questions |
 | `serve.py` | local web server **with HTTP Range support** (seeking) |
-| `skill/SKILL.md` | the `meeting-notes` Claude Code skill |
 | `transcripts/` | **your outputs — git-ignored** (recordings/transcripts are private) |
 
 ---
 
 ## Privacy
 
-Everything runs locally; no audio or text leaves your machine. The `transcripts/` folder (recordings, transcripts, generated pages — which embed the full transcript) is **git-ignored** so private meeting content is never committed.
+Everything runs locally; no audio or text leaves your machine. `transcripts/` (recordings, transcripts, and generated pages — which embed the full transcript) is **git-ignored**, so meeting content is never committed.
