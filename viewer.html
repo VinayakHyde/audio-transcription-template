@@ -28,7 +28,18 @@
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   h1{font-size:14px;margin:0 8px 0 0;font-weight:600;letter-spacing:.2px}
   .file-name{font-size:12px;color:var(--muted);max-width:32vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  audio{width:100%;margin-top:10px;height:38px}
+  audio{display:none}
+  /* custom transport */
+  #transport{display:flex;align-items:center;gap:9px;margin-top:10px}
+  #transport button{font-size:12px;padding:5px 9px}
+  #playpause{min-width:36px;font-size:13px}
+  .tcur,.tdur{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);min-width:42px;text-align:center;user-select:none}
+  #seek{position:relative;flex:1;height:8px;background:var(--line);border-radius:5px;cursor:pointer}
+  #seekFill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);border-radius:5px;pointer-events:none}
+  #seekTip{position:absolute;bottom:15px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+    font-size:11px;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:5px;white-space:nowrap;
+    pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:var(--shadow)}
+  #seek:hover #seekTip{opacity:1}
   .ctl{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
   select,input[type=search]{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--line);
     border-radius:8px;background:var(--bg);color:var(--ink)}
@@ -138,7 +149,15 @@
       <button id="btnLoad">Load files</button>
     </div>
   </div>
-  <audio id="audio" controls preload="metadata"></audio>
+  <div id="transport">
+    <button id="back10" title="Back 10 seconds (or J)">−10s</button>
+    <button id="playpause" title="Play / Pause (Space)">▶</button>
+    <button id="fwd10" title="Forward 10 seconds (or L)">+10s</button>
+    <span class="tcur" id="curTime">0:00</span>
+    <div id="seek"><div id="seekFill"></div><div id="seekTip">0:00</div></div>
+    <span class="tdur" id="durTime">0:00</span>
+  </div>
+  <audio id="audio" preload="metadata"></audio>
   <div id="spk"><h3>Speaker labels</h3><div id="spkList"></div>
     <div class="hint">Names save automatically. Diarization on mono audio is imperfect — a few turns may be misattributed.</div>
   </div>
@@ -439,10 +458,31 @@ document.addEventListener('drop',e=>{ for(const f of e.dataTransfer.files){
   else if(/\.(m4a|mp3|wav|aac|ogg|flac|mp4)$/i.test(f.name)||f.type.startsWith('audio')) setAudio(f); }
   maybeReveal(); });
 
-/* speed + keyboard (ignore typing in inputs / notes) */
+/* ---------- custom transport: play/pause, ±10s, seek bar with hover-timestamp ---------- */
+const seek=$('#seek'), seekFill=$('#seekFill'), seekTip=$('#seekTip'),
+      curTime=$('#curTime'), durTime=$('#durTime'), playBtn=$('#playpause');
+function refreshTransport(){ curTime.textContent=fmt(audio.currentTime);
+  if(audio.duration && isFinite(audio.duration)){ durTime.textContent=fmt(audio.duration);
+    seekFill.style.width=(audio.currentTime/audio.duration*100)+'%'; } }
+audio.addEventListener('loadedmetadata',refreshTransport);
+audio.addEventListener('timeupdate',refreshTransport);
+audio.addEventListener('play',()=>playBtn.textContent='⏸');
+audio.addEventListener('pause',()=>playBtn.textContent='▶');
+playBtn.onclick=()=> audio.paused?audio.play():audio.pause();
+$('#back10').onclick=()=>{ audio.currentTime=Math.max(0,audio.currentTime-10); };
+$('#fwd10').onclick=()=>{ audio.currentTime=Math.min((audio.duration||1e9)-0.05, audio.currentTime+10); };
+function seekAt(clientX){ const r=seek.getBoundingClientRect();
+  const x=Math.min(Math.max(clientX-r.left,0),r.width); return {t:(audio.duration||0)*(x/(r.width||1)), x}; }
+seek.addEventListener('mousemove',e=>{ const {t,x}=seekAt(e.clientX); seekTip.textContent=fmt(t); seekTip.style.left=x+'px'; });
+let seekDrag=false;
+seek.addEventListener('mousedown',e=>{ seekDrag=true; const {t}=seekAt(e.clientX); if(isFinite(t)) audio.currentTime=t; e.preventDefault(); });
+window.addEventListener('mousemove',e=>{ if(!seekDrag) return; const {t}=seekAt(e.clientX); if(isFinite(t)) audio.currentTime=t; });
+window.addEventListener('mouseup',()=>{ seekDrag=false; });
+
+/* speed + keyboard (ignore typing in inputs / notes / buttons) */
 $('#speed').onchange=e=>audio.playbackRate=+e.target.value;
 document.addEventListener('keydown',e=>{
-  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(e.target.tagName) || e.target.isContentEditable) return;
   if(e.code==='Space'){ e.preventDefault(); audio.paused?audio.play():audio.pause(); }
   else if(e.code==='ArrowLeft'){ audio.currentTime=Math.max(0,audio.currentTime-5); }
   else if(e.code==='ArrowRight'){ audio.currentTime+=5; }
