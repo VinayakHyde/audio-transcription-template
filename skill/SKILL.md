@@ -41,6 +41,8 @@ Requires `HF_TOKEN` in the environment + `ffmpeg`. Diarization model: `pyannote/
 
    If `context` is a file path, `Read` it first. When the context supplies a **glossary or known entities** (people, clients, the company name, acronyms), use them to **correct shaky transcript spellings and resolve open questions** — e.g. a name the audio rendered as "Devarshish" becomes a confirmed fact (not an open question) if the brief lists the real spelling; expand acronyms like "OI"/"CPC" if the brief defines them.
 
+   **A glossary term OVERRIDES the transcript — always — even when the audio repeats the wrong form dozens of times.** The transcript is raw ASR; the glossary is ground truth. If the glossary says the term is "KAM" but the audio says "CAM" throughout, write **KAM** everywhere in the notes (likewise Aanchal-not-Anshul, the real company name, etc.). Before finishing, do a **find-and-replace pass over the notes** for every glossary-corrected term to catch any that slipped through in the transcript's spelling. Do NOT flag a glossary-confirmed term as an open question.
+
    **Organize into themed `<h2>` sections** (with `<h3>` sub-sections where it helps), each unpacking real content with detailed `<ul>` bullets or `<ol>` step lists. Adapt the sections to the meeting; a typical spine:
    ```html
    <h1>{Title}</h1><p>1–2 sentence context (who/what).</p>
