@@ -27,13 +27,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIO="${1:?Usage: ./transcribe.sh /path/to/audio.(m4a|mp3|wav) [num_speakers]}"
 SPEAKERS="${2:-}"
 
+# meeting identity + processing date -> outputs go to transcripts/<date>/<meeting>/
+BASE="$(basename "$AUDIO")"; BASE="${BASE%.*}"
+RUN_DATE="${RUN_DATE:-$(date +%F)}"
+
 # ----- settings -----
 MODEL="${MODEL:-large-v3}"          # large-v3 (best) | large-v3-turbo (faster) | medium | small
 LANG_CODE="${WHISPER_LANG:-en}"     # "" to auto-detect language (don't use $LANG — that's the OS locale)
 DIARIZE="${DIARIZE:-1}"             # 1 = speaker labels (default), 0 = plain transcript
 RENDER="${RENDER:-1}"               # 1 = also build the standalone .html player page
 VENV="${VENV:-$HOME/.whisperx-venv}"
-OUTDIR="${OUTDIR:-$SCRIPT_DIR/transcripts}"   # <-- lands inside the template folder
+OUTDIR="${OUTDIR:-$SCRIPT_DIR/transcripts/$RUN_DATE/$BASE}"   # transcripts/<date>/<meeting>/
 VIEWER="$SCRIPT_DIR/viewer.html"
 
 # ----- one-time environment bootstrap (skipped once the venv exists) -----
@@ -78,14 +82,14 @@ JSON_OUT="$OUTDIR/$BASE.json"
 if [ "$RENDER" = "1" ] && [ -f "$JSON_OUT" ]; then
   # Put a browser-SEEKABLE copy of the audio in the folder (moov atom moved to the front).
   # Without this, m4a recordings won't scrub or click-to-seek until fully buffered.
-  EXT="$(printf '%s' "${AUDIO##*.}" | tr '[:upper:]' '[:lower:]')"
-  case "$EXT" in
-    m4a|mp4|mov|aac|m4b)
-      AUDIO_LOCAL="$OUTDIR/$BASE.m4a"
-      ffmpeg -y -i "$AUDIO" -c copy -movflags +faststart "$AUDIO_LOCAL" >/dev/null 2>&1 \
-        || cp "$AUDIO" "$AUDIO_LOCAL" ;;
-    *) AUDIO_LOCAL="$OUTDIR/$BASE.$EXT"; cp "$AUDIO" "$AUDIO_LOCAL" ;;
-  esac
+  # compact, browser-seekable audio copy: mono ~64k AAC + faststart, video stripped (-vn).
+  # -vn is essential for video inputs (.mov/.mp4): without it ffmpeg copies the h264 stream along,
+  # leaving a 250MB+ file that blows GitHub's 100MB push limit. Audio-only stays ~18MB for 40 min.
+  # keeps every file well under GitHub's 100MB push limit (a 2.5h meeting ≈ 70MB) and is plenty for speech.
+  AUDIO_LOCAL="$OUTDIR/$BASE.m4a"
+  ffmpeg -y -i "$AUDIO" -vn -c:a aac -b:a 64k -ac 1 -movflags +faststart "$AUDIO_LOCAL" >/dev/null 2>&1 \
+    || ffmpeg -y -i "$AUDIO" -vn -c:a copy -movflags +faststart "$AUDIO_LOCAL" >/dev/null 2>&1 \
+    || cp "$AUDIO" "$AUDIO_LOCAL"
   python3 "$SCRIPT_DIR/render_page.py" "$AUDIO_LOCAL" "$JSON_OUT" "$VIEWER" "$OUTDIR/$BASE.html"
   echo ">> Open it:  open \"$OUTDIR/$BASE.html\""
 fi
