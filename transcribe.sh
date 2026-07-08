@@ -34,6 +34,14 @@ RUN_DATE="${RUN_DATE:-$(date +%F)}"
 # ----- settings -----
 MODEL="${MODEL:-large-v3}"          # large-v3 (best) | large-v3-turbo (faster) | medium | small
 LANG_CODE="${WHISPER_LANG:-en}"     # "" to auto-detect language (don't use $LANG — that's the OS locale)
+TASK="${TASK:-transcribe}"          # transcribe (default) | translate (any spoken language -> English text)
+NO_ALIGN="${NO_ALIGN:-0}"           # 1 = skip word-level alignment. REQUIRED with TASK=translate:
+                                    #   WhisperX aligns English output text against a per-language phoneme
+                                    #   model, but with translate the audio is NOT English, so alignment
+                                    #   force-fits English words onto foreign phonemes -> wrong word times.
+                                    #   Segment-level timestamps (from Whisper) stay accurate; diarization
+                                    #   still labels speakers per segment. e.g. Kannada+English -> English:
+                                    #     TASK=translate WHISPER_LANG=kn NO_ALIGN=1 ./transcribe.sh in.m4a
 DIARIZE="${DIARIZE:-1}"             # 1 = speaker labels (default), 0 = plain transcript
 RENDER="${RENDER:-1}"               # 1 = also build the standalone .html player page
 VENV="${VENV:-$HOME/.whisperx-venv}"
@@ -56,6 +64,9 @@ mkdir -p "$OUTDIR"
 ARGS=( "$AUDIO" --model "$MODEL" --device cpu --compute_type int8
        --output_dir "$OUTDIR" --output_format all )
 [ -n "$LANG_CODE" ] && ARGS+=( --language "$LANG_CODE" )
+[ "$TASK" != "transcribe" ] && ARGS+=( --task "$TASK" )
+[ "$NO_ALIGN" = "1" ] && ARGS+=( --no_align )
+[ "$TASK" = "translate" ] && echo ">> task: TRANSLATE (output is English)$([ "$NO_ALIGN" != "1" ] && echo "  [warn: NO_ALIGN=0 — word timestamps will be wrong for non-English audio]")"
 
 if [ "$DIARIZE" = "1" ]; then
   : "${HF_TOKEN:?Diarization needs a token: export HF_TOKEN=hf_xxxx (or run with DIARIZE=0)}"
